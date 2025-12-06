@@ -1,0 +1,5 @@
+.*
+!.gitignore
+!.env.example
+dist
+node_modules
