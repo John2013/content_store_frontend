@@ -92,7 +92,7 @@ describe('Integration Tests - Admin Panel', () => {
       created_at: '2024-01-01T00:00:00Z'
     }
     
-    api.getCategories
+    api.getCategoriesWithCounts
       .mockResolvedValueOnce(initialCategories) // Initial load
       .mockResolvedValueOnce([newCategory]) // After creation
     api.createCategory.mockResolvedValue(newCategory)
@@ -124,7 +124,7 @@ describe('Integration Tests - Admin Panel', () => {
     expect(api.createCategory).toHaveBeenCalledTimes(1)
     
     // Step 5: Verify categories list was reloaded
-    expect(api.getCategories).toHaveBeenCalledTimes(2)
+    expect(api.getCategoriesWithCounts).toHaveBeenCalledTimes(2)
     
     // Step 6: Verify new category appears in the list
     expect(wrapper.vm.categories).toHaveLength(1)
@@ -252,7 +252,7 @@ describe('Integration Tests - Admin Panel', () => {
     await flushPromises()
     
     // Step 8: Verify filter API call
-    expect(api.getProducts).toHaveBeenCalledWith(1, 0, 20)
+    expect(api.getProducts).toHaveBeenCalledWith(1, 0, 20, false)
     
     // Step 9: Verify filtered results (only Electronics products)
     expect(wrapper.vm.products).toHaveLength(1)
@@ -265,7 +265,7 @@ describe('Integration Tests - Admin Panel', () => {
     await flushPromises()
     
     // Step 11: Verify filter API call
-    expect(api.getProducts).toHaveBeenCalledWith(2, 0, 20)
+    expect(api.getProducts).toHaveBeenCalledWith(2, 0, 20, false)
     
     // Step 12: Verify filtered results (only Books products)
     expect(wrapper.vm.products).toHaveLength(1)

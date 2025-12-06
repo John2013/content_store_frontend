@@ -33,28 +33,30 @@ describe('AdminCategories - Unit Tests', () => {
   })
 
   /**
-   * Unit Test: Category loading
-   * Validates: Requirements 2.1
+   * Unit Test: Category loading with product counts
+   * Validates: Requirements 2.1, 9.1
    * 
-   * Test that categories are loaded from API on component mount
+   * Test that categories are loaded from API on component mount with product counts
    */
-  it('should load categories from API on mount', async () => {
+  it('should load categories with product counts from API on mount', async () => {
     const mockCategories = [
       {
         id: 1,
         name: 'Test Category 1',
         description: 'Description 1',
-        created_at: '2024-01-01T00:00:00Z'
+        created_at: '2024-01-01T00:00:00Z',
+        product_count: 5
       },
       {
         id: 2,
         name: 'Test Category 2',
         description: null,
-        created_at: '2024-01-02T00:00:00Z'
+        created_at: '2024-01-02T00:00:00Z',
+        product_count: 0
       }
     ]
 
-    api.getCategories.mockResolvedValue(mockCategories)
+    api.getCategoriesWithCounts.mockResolvedValue(mockCategories)
 
     const wrapper = mount(AdminCategories)
     
@@ -63,11 +65,100 @@ describe('AdminCategories - Unit Tests', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
 
     // Verify API was called
-    expect(api.getCategories).toHaveBeenCalledTimes(1)
+    expect(api.getCategoriesWithCounts).toHaveBeenCalledTimes(1)
     
     // Verify categories are loaded
     expect(wrapper.vm.categories).toEqual(mockCategories)
     expect(wrapper.vm.loading).toBe(false)
+    
+    // Verify product counts are displayed
+    expect(wrapper.text()).toContain('Товаров:')
+    expect(wrapper.text()).toContain('5')
+  })
+
+  /**
+   * Unit Test: Category edit functionality
+   * Validates: Requirements 2.1, 2.2
+   * 
+   * Test that category can be edited using PATCH
+   */
+  it('should update category using PATCH API', async () => {
+    const mockCategory = {
+      id: 1,
+      name: 'Original Name',
+      description: 'Original Description',
+      created_at: '2024-01-01T00:00:00Z',
+      product_count: 3
+    }
+
+    const updatedData = {
+      name: 'Updated Name',
+      description: 'Updated Description'
+    }
+
+    api.getCategoriesWithCounts.mockResolvedValue([mockCategory])
+    api.patchCategory.mockResolvedValue({ ...mockCategory, ...updatedData })
+
+    const wrapper = mount(AdminCategories)
+    
+    // Wait for async operations
+    await wrapper.vm.$nextTick()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    // Set category to edit
+    wrapper.vm.categoryToEdit = mockCategory
+
+    // Call update handler
+    await wrapper.vm.handleUpdateCategory(updatedData)
+
+    // Verify API was called with correct data
+    expect(api.patchCategory).toHaveBeenCalledWith(mockCategory.id, updatedData)
+    expect(api.patchCategory).toHaveBeenCalledTimes(1)
+    
+    // Verify success notification
+    expect(mockAddNotification).toHaveBeenCalledWith({
+      message: 'Категория успешно обновлена',
+      type: 'success'
+    })
+  })
+
+  /**
+   * Unit Test: Category edit error handling
+   * Validates: Requirements 2.1, 2.2
+   * 
+   * Test that error responses are handled correctly
+   */
+  it('should handle 404 error when updating non-existent category', async () => {
+    const mockCategory = {
+      id: 999,
+      name: 'Test Category',
+      description: 'Test Description',
+      created_at: '2024-01-01T00:00:00Z',
+      product_count: 0
+    }
+
+    api.getCategoriesWithCounts.mockResolvedValue([])
+    api.patchCategory.mockRejectedValue({
+      message: 'Not found',
+      response: { status: 404 }
+    })
+
+    const wrapper = mount(AdminCategories)
+    
+    await wrapper.vm.$nextTick()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    // Set category to edit
+    wrapper.vm.categoryToEdit = mockCategory
+
+    // Call update handler
+    await wrapper.vm.handleUpdateCategory({ name: 'New Name' })
+
+    // Verify error notification with specific message
+    expect(mockAddNotification).toHaveBeenCalledWith({
+      message: 'Категория не найдена',
+      type: 'error'
+    })
   })
 
   /**
@@ -77,7 +168,7 @@ describe('AdminCategories - Unit Tests', () => {
    * Test that empty state is displayed when no categories exist
    */
   it('should display empty state when no categories exist', async () => {
-    api.getCategories.mockResolvedValue([])
+    api.getCategoriesWithCounts.mockResolvedValue([])
 
     const wrapper = mount(AdminCategories)
     
@@ -101,7 +192,7 @@ describe('AdminCategories - Unit Tests', () => {
    */
   it('should display error notification when loading categories fails', async () => {
     const errorMessage = 'Network error'
-    api.getCategories.mockRejectedValue(new Error(errorMessage))
+    api.getCategoriesWithCounts.mockRejectedValue(new Error(errorMessage))
 
     const wrapper = mount(AdminCategories)
     
@@ -153,7 +244,7 @@ describe('AdminCategories - Property-Based Tests', () => {
           vi.clearAllMocks()
           
           // Mock API to return the generated categories
-          api.getCategories.mockResolvedValue(categories)
+          api.getCategoriesWithCounts.mockResolvedValue(categories)
           
           // Mount component
           const wrapper = mount(AdminCategories)
@@ -205,7 +296,7 @@ describe('AdminCategories - Property-Based Tests', () => {
           vi.clearAllMocks()
           
           // Mock API responses
-          api.getCategories.mockResolvedValue([])
+          api.getCategoriesWithCounts.mockResolvedValue([])
           api.createCategory.mockResolvedValue({ id: 1, ...categoryData, created_at: new Date().toISOString() })
           
           // Mount component
@@ -259,7 +350,7 @@ describe('AdminCategories - Property-Based Tests', () => {
           }
           
           // Mock API responses
-          api.getCategories
+          api.getCategoriesWithCounts
             .mockResolvedValueOnce(initialCategories) // Initial load
             .mockResolvedValueOnce([...initialCategories, newCategory]) // After creation
           api.createCategory.mockResolvedValue(newCategory)
@@ -278,7 +369,7 @@ describe('AdminCategories - Property-Based Tests', () => {
           await wrapper.vm.$nextTick()
           
           // Verify list was updated (loadCategories was called again)
-          expect(api.getCategories).toHaveBeenCalledTimes(2)
+          expect(api.getCategoriesWithCounts).toHaveBeenCalledTimes(2)
           
           // Verify the new category is in the list
           expect(wrapper.vm.categories.length).toBe(initialCount + 1)
@@ -311,7 +402,7 @@ describe('AdminCategories - Property-Based Tests', () => {
           vi.clearAllMocks()
           
           // Mock API responses
-          api.getCategories.mockResolvedValue([category])
+          api.getCategoriesWithCounts.mockResolvedValue([category])
           api.deleteCategory.mockResolvedValue(true)
           
           // Mount component
@@ -369,7 +460,7 @@ describe('AdminCategories - Property-Based Tests', () => {
           const remainingCategories = categories.filter(c => c.id !== categoryToDelete.id)
           
           // Mock API responses
-          api.getCategories
+          api.getCategoriesWithCounts
             .mockResolvedValueOnce(categories) // Initial load
             .mockResolvedValueOnce(remainingCategories) // After deletion
           api.deleteCategory.mockResolvedValue(true)
@@ -390,7 +481,7 @@ describe('AdminCategories - Property-Based Tests', () => {
           await wrapper.vm.$nextTick()
           
           // Verify list was updated (loadCategories was called again)
-          expect(api.getCategories).toHaveBeenCalledTimes(2)
+          expect(api.getCategoriesWithCounts).toHaveBeenCalledTimes(2)
           
           // Verify the category is no longer in the list
           expect(wrapper.vm.categories.length).toBe(initialCount - 1)

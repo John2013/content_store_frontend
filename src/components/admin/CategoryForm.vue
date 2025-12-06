@@ -32,7 +32,7 @@
 
       <div class="form-actions">
         <button type="submit" class="btn btn-primary" :disabled="!isValid">
-          Создать категорию
+          {{ isEdit ? 'Сохранить изменения' : 'Создать категорию' }}
         </button>
         <button type="button" class="btn btn-secondary" @click="handleCancel">
           Отмена
@@ -47,11 +47,21 @@ import { ref, computed } from 'vue'
 
 export default {
   name: 'CategoryForm',
+  props: {
+    initialData: {
+      type: Object,
+      default: null
+    },
+    isEdit: {
+      type: Boolean,
+      default: false
+    }
+  },
   emits: ['submit', 'cancel'],
   setup(props, { emit }) {
     const formData = ref({
-      name: '',
-      description: ''
+      name: props.initialData?.name || '',
+      description: props.initialData?.description || ''
     })
 
     const errors = ref({

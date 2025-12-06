@@ -93,7 +93,7 @@
 
       <div class="form-actions">
         <button type="submit" class="btn btn-primary" :disabled="!isValid">
-          Создать товар
+          {{ isEdit ? 'Сохранить изменения' : 'Создать товар' }}
         </button>
         <button type="button" class="btn btn-secondary" @click="handleCancel">
           Отмена
@@ -112,17 +112,25 @@ export default {
     categories: {
       type: Array,
       default: () => []
+    },
+    initialData: {
+      type: Object,
+      default: null
+    },
+    isEdit: {
+      type: Boolean,
+      default: false
     }
   },
   emits: ['submit', 'cancel'],
   setup(props, { emit }) {
     const formData = ref({
-      title: '',
-      description: '',
-      price: '',
-      content_text: '',
-      category_id: null,
-      is_active: true
+      title: props.initialData?.title || '',
+      description: props.initialData?.description || '',
+      price: props.initialData?.price || '',
+      content_text: props.initialData?.content_text || '',
+      category_id: props.initialData?.category_id || null,
+      is_active: props.initialData?.is_active !== undefined ? props.initialData.is_active : true
     })
 
     const errors = ref({

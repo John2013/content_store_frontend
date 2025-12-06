@@ -64,12 +64,12 @@ describe('AdminProducts - Unit Tests', () => {
   })
 
   /**
-   * Unit test: Loading products
-   * Validates: Requirements 5.1
+   * Unit test: Loading products with inactive filter
+   * Validates: Requirements 5.1, 6.3
    * 
-   * Test that products are loaded from API when component mounts
+   * Test that products are loaded from API when component mounts with include_inactive parameter
    */
-  it('should load products from API on mount', async () => {
+  it('should load products from API on mount with include_inactive parameter', async () => {
     const mockProducts = [
       {
         id: 1,
@@ -106,8 +106,8 @@ describe('AdminProducts - Unit Tests', () => {
     await wrapper.vm.$nextTick()
     await new Promise(resolve => setTimeout(resolve, 0))
 
-    // Verify API was called
-    expect(api.getProducts).toHaveBeenCalledWith(null, 0, 20)
+    // Verify API was called with default showInactive=false
+    expect(api.getProducts).toHaveBeenCalledWith(null, 0, 20, false)
     
     // Verify products are loaded
     expect(wrapper.vm.products).toEqual(mockProducts)
@@ -116,6 +116,128 @@ describe('AdminProducts - Unit Tests', () => {
     // Verify products are displayed
     expect(wrapper.text()).toContain('Test Product 1')
     expect(wrapper.text()).toContain('Test Product 2')
+  })
+
+  /**
+   * Unit test: Product edit functionality
+   * Validates: Requirements 3.1, 3.2
+   * 
+   * Test that product can be edited using PATCH
+   */
+  it('should update product using PATCH API', async () => {
+    const mockProduct = {
+      id: 1,
+      title: 'Original Title',
+      description: 'Original Description',
+      price: '99.99',
+      content_text: 'Original Content',
+      category_id: 1,
+      is_active: true,
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-01T00:00:00Z',
+      category: null
+    }
+
+    const updatedData = {
+      title: 'Updated Title',
+      price: 149.99
+    }
+
+    api.getCategories.mockResolvedValue([])
+    api.getProducts.mockResolvedValue([mockProduct])
+    api.patchProduct.mockResolvedValue({ ...mockProduct, ...updatedData })
+
+    const wrapper = mount(AdminProducts)
+    
+    await wrapper.vm.$nextTick()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    // Set product to edit
+    wrapper.vm.productToEdit = mockProduct
+
+    // Call update handler
+    await wrapper.vm.handleUpdateProduct(updatedData)
+
+    // Verify API was called with correct data
+    expect(api.patchProduct).toHaveBeenCalledWith(mockProduct.id, updatedData)
+    expect(api.patchProduct).toHaveBeenCalledTimes(1)
+    
+    // Verify success notification
+    expect(mockAddNotification).toHaveBeenCalledWith({
+      message: 'Товар успешно обновлен',
+      type: 'success'
+    })
+  })
+
+  /**
+   * Unit test: Product status toggle
+   * Validates: Requirements 6.1
+   * 
+   * Test that product status can be toggled using PATCH
+   */
+  it('should toggle product status using PATCH API', async () => {
+    const mockProduct = {
+      id: 1,
+      title: 'Test Product',
+      description: 'Test Description',
+      price: '99.99',
+      content_text: 'Test Content',
+      category_id: 1,
+      is_active: true,
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-01T00:00:00Z',
+      category: null
+    }
+
+    api.getCategories.mockResolvedValue([])
+    api.getProducts.mockResolvedValue([mockProduct])
+    api.patchProduct.mockResolvedValue({ ...mockProduct, is_active: false })
+
+    const wrapper = mount(AdminProducts)
+    
+    await wrapper.vm.$nextTick()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    // Call toggle handler
+    await wrapper.vm.toggleProductStatus(mockProduct)
+
+    // Verify API was called with correct data
+    expect(api.patchProduct).toHaveBeenCalledWith(mockProduct.id, {
+      is_active: false
+    })
+    expect(api.patchProduct).toHaveBeenCalledTimes(1)
+    
+    // Verify success notification
+    expect(mockAddNotification).toHaveBeenCalledWith({
+      message: 'Товар деактивирован',
+      type: 'success'
+    })
+  })
+
+  /**
+   * Unit test: Inactive products filter
+   * Validates: Requirements 6.3
+   * 
+   * Test that inactive filter passes correct parameter to API
+   */
+  it('should pass include_inactive parameter when filter is enabled', async () => {
+    api.getCategories.mockResolvedValue([])
+    api.getProducts.mockResolvedValue([])
+
+    const wrapper = mount(AdminProducts)
+    
+    await wrapper.vm.$nextTick()
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    // Clear previous calls
+    vi.clearAllMocks()
+
+    // Enable inactive filter
+    wrapper.vm.showInactive = true
+    await wrapper.vm.handleInactiveFilter()
+
+    // Verify API was called with include_inactive=true
+    expect(api.getProducts).toHaveBeenCalledWith(null, 0, 20, true)
   })
 
   /**
@@ -275,7 +397,8 @@ describe('AdminProducts - Property-Based Tests', () => {
           expect(api.getProducts).toHaveBeenCalledWith(
             categoryId,
             0, // skip should be reset to 0
-            wrapper.vm.pagination.limit
+            wrapper.vm.pagination.limit,
+            wrapper.vm.showInactive
           )
         }
       ),
@@ -322,7 +445,8 @@ describe('AdminProducts - Property-Based Tests', () => {
           expect(api.getProducts).toHaveBeenCalledWith(
             wrapper.vm.selectedCategory,
             skip,
-            limit
+            limit,
+            wrapper.vm.showInactive
           )
         }
       ),

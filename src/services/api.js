@@ -46,11 +46,12 @@ export default {
     }catch(e){return null}
   },
   // Products / categories
-  async getProducts(category_id=null, skip=0, limit=100){
+  async getProducts(category_id=null, skip=0, limit=100, include_inactive=false){
     const q = new URLSearchParams()
     if(category_id) q.set('category_id', category_id)
     q.set('skip', skip)
     q.set('limit', limit)
+    if(include_inactive) q.set('include_inactive', 'true')
     const res = await fetch(API_BASE + '/api/store/products?' + q.toString())
     if(!res.ok) throw new Error('Failed to fetch products')
     return res.json()
@@ -131,6 +132,16 @@ export default {
     if(!res.ok) throw new Error('Failed to fetch categories')
     return res.json()
   },
+  async getCategoriesWithCounts(){
+    const res = await fetch(API_BASE + '/api/store/categories?include_counts=true')
+    if(!res.ok) throw new Error('Failed to fetch categories with counts')
+    return res.json()
+  },
+  async getCategory(category_id){
+    const res = await fetch(API_BASE + `/api/store/categories/${category_id}`)
+    if(!res.ok) throw new Error('Failed to fetch category')
+    return res.json()
+  },
   async createCategory(data){
     const token = localStorage.getItem('token')
     const res = await fetch(API_BASE + '/api/store/categories', {
@@ -139,6 +150,26 @@ export default {
       body: JSON.stringify(data)
     })
     if(!res.ok) throw new Error('Failed to create category')
+    return res.json()
+  },
+  async updateCategory(category_id, data){
+    const token = localStorage.getItem('token')
+    const res = await fetch(API_BASE + `/api/store/categories/${category_id}`, {
+      method: 'PUT',
+      headers: jsonHeaders(token),
+      body: JSON.stringify(data)
+    })
+    if(!res.ok) throw new Error('Failed to update category')
+    return res.json()
+  },
+  async patchCategory(category_id, data){
+    const token = localStorage.getItem('token')
+    const res = await fetch(API_BASE + `/api/store/categories/${category_id}`, {
+      method: 'PATCH',
+      headers: jsonHeaders(token),
+      body: JSON.stringify(data)
+    })
+    if(!res.ok) throw new Error('Failed to patch category')
     return res.json()
   },
   async deleteCategory(category_id){
@@ -167,9 +198,29 @@ export default {
     const res = await fetch(API_BASE + '/api/store/products/create-many', {
       method: 'POST',
       headers: jsonHeaders(token),
-      body: JSON.stringify(products)
+      body: JSON.stringify({ products })
     })
     if(!res.ok) throw new Error('Failed to create products')
+    return res.json()
+  },
+  async updateProduct(product_id, data){
+    const token = localStorage.getItem('token')
+    const res = await fetch(API_BASE + `/api/store/products/${product_id}`, {
+      method: 'PUT',
+      headers: jsonHeaders(token),
+      body: JSON.stringify(data)
+    })
+    if(!res.ok) throw new Error('Failed to update product')
+    return res.json()
+  },
+  async patchProduct(product_id, data){
+    const token = localStorage.getItem('token')
+    const res = await fetch(API_BASE + `/api/store/products/${product_id}`, {
+      method: 'PATCH',
+      headers: jsonHeaders(token),
+      body: JSON.stringify(data)
+    })
+    if(!res.ok) throw new Error('Failed to patch product')
     return res.json()
   },
   async deleteProduct(product_id){

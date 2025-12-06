@@ -29,6 +29,17 @@
           </option>
         </select>
       </div>
+      <div class="filter-group">
+        <label class="checkbox-label">
+          <input
+            v-model="showInactive"
+            type="checkbox"
+            class="filter-checkbox"
+            @change="handleInactiveFilter"
+          />
+          <span>Показать неактивные товары</span>
+        </label>
+      </div>
     </div>
 
     <!-- Loading State -->
@@ -92,6 +103,19 @@
           
           <div class="product-actions">
             <button
+              class="btn btn-secondary btn-sm"
+              @click="openEditModal(product)"
+            >
+              Редактировать
+            </button>
+            <button
+              class="btn btn-sm"
+              :class="product.is_active ? 'btn-warning' : 'btn-success'"
+              @click="toggleProductStatus(product)"
+            >
+              {{ product.is_active ? 'Деактивировать' : 'Активировать' }}
+            </button>
+            <button
               class="btn btn-danger btn-sm"
               @click="confirmDelete(product)"
             >
@@ -135,6 +159,25 @@
             :categories="categories"
             @submit="handleCreateProduct"
             @cancel="closeCreateModal"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div v-if="showEditModal" class="modal-overlay" @click="closeEditModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h2 class="modal-title">Редактировать товар</h2>
+          <button class="modal-close" @click="closeEditModal">×</button>
+        </div>
+        <div class="modal-body">
+          <ProductForm
+            :categories="categories"
+            :initial-data="productToEdit"
+            :is-edit="true"
+            @submit="handleUpdateProduct"
+            @cancel="closeEditModal"
           />
         </div>
       </div>
@@ -191,10 +234,13 @@ export default {
     const categories = ref([])
     const loading = ref(false)
     const showCreateModal = ref(false)
+    const showEditModal = ref(false)
     const showBulkModal = ref(false)
     const showDeleteDialog = ref(false)
     const productToDelete = ref(null)
+    const productToEdit = ref(null)
     const selectedCategory = ref(null)
+    const showInactive = ref(false)
     const pagination = ref({
       skip: 0,
       limit: 20
@@ -221,6 +267,7 @@ export default {
      * Requirements 5.1: Load and display all products
      * Requirements 5.3: Filter by category
      * Requirements 5.4: Pagination with skip/limit
+     * Requirements 6.3: Filter by active/inactive status
      */
     const loadProducts = async () => {
       loading.value = true
@@ -228,7 +275,8 @@ export default {
         const data = await api.getProducts(
           selectedCategory.value,
           pagination.value.skip,
-          pagination.value.limit
+          pagination.value.limit,
+          showInactive.value
         )
         products.value = data
       } catch (error) {
@@ -247,6 +295,15 @@ export default {
      * Requirements 5.3: Filter products by category
      */
     const handleCategoryFilter = () => {
+      pagination.value.skip = 0
+      loadProducts()
+    }
+
+    /**
+     * Handles inactive filter change
+     * Requirements 6.1, 6.3: Filter products by active/inactive status
+     */
+    const handleInactiveFilter = () => {
       pagination.value.skip = 0
       loadProducts()
     }
@@ -275,6 +332,20 @@ export default {
 
     const closeCreateModal = () => {
       showCreateModal.value = false
+    }
+
+    /**
+     * Opens edit product modal
+     * Requirements 3.1, 3.2: Display form for editing product
+     */
+    const openEditModal = (product) => {
+      productToEdit.value = product
+      showEditModal.value = true
+    }
+
+    const closeEditModal = () => {
+      showEditModal.value = false
+      productToEdit.value = null
     }
 
     /**
@@ -314,6 +385,93 @@ export default {
         // Requirement 6.6: Display error message
         addNotification({
           message: 'Ошибка при создании товара: ' + error.message,
+          type: 'error'
+        })
+      }
+    }
+
+    /**
+     * Handles product update
+     * Requirements 3.1, 3.2: Call API to update product
+     * Handle both PUT and PATCH operations
+     */
+    const handleUpdateProduct = async (data) => {
+      if (!productToEdit.value) return
+
+      try {
+        // Use PATCH for partial updates
+        await api.patchProduct(productToEdit.value.id, data)
+        
+        // Reload products to show the updated one
+        await loadProducts()
+        
+        // Close modal
+        closeEditModal()
+        
+        // Show success notification
+        addNotification({
+          message: 'Товар успешно обновлен',
+          type: 'success'
+        })
+      } catch (error) {
+        // Handle error responses
+        let errorMessage = 'Ошибка при обновлении товара: ' + error.message
+        
+        // Handle specific error codes
+        if (error.response) {
+          if (error.response.status === 404) {
+            errorMessage = 'Товар не найден'
+          } else if (error.response.status === 422) {
+            errorMessage = 'Неверные данные товара'
+          } else if (error.response.status === 401) {
+            errorMessage = 'Требуется авторизация'
+          } else if (error.response.status === 403) {
+            errorMessage = 'Недостаточно прав для обновления товара'
+          }
+        }
+        
+        addNotification({
+          message: errorMessage,
+          type: 'error'
+        })
+      }
+    }
+
+    /**
+     * Toggles product active status
+     * Requirements 6.1: Use PATCH to activate/deactivate products
+     */
+    const toggleProductStatus = async (product) => {
+      try {
+        // Use PATCH to update only is_active field
+        await api.patchProduct(product.id, {
+          is_active: !product.is_active
+        })
+        
+        // Reload products to show the updated status
+        await loadProducts()
+        
+        // Show success notification
+        addNotification({
+          message: product.is_active ? 'Товар деактивирован' : 'Товар активирован',
+          type: 'success'
+        })
+      } catch (error) {
+        // Handle error responses
+        let errorMessage = 'Ошибка при изменении статуса товара: ' + error.message
+        
+        if (error.response) {
+          if (error.response.status === 404) {
+            errorMessage = 'Товар не найден'
+          } else if (error.response.status === 401) {
+            errorMessage = 'Требуется авторизация'
+          } else if (error.response.status === 403) {
+            errorMessage = 'Недостаточно прав для изменения статуса товара'
+          }
+        }
+        
+        addNotification({
+          message: errorMessage,
           type: 'error'
         })
       }
@@ -388,9 +546,21 @@ export default {
           type: 'success'
         })
       } catch (error) {
-        // Requirement 8.4: Display error message
+        // Handle error responses
+        let errorMessage = 'Ошибка при удалении товара: ' + error.message
+        
+        if (error.response) {
+          if (error.response.status === 404) {
+            errorMessage = 'Товар не найден'
+          } else if (error.response.status === 401) {
+            errorMessage = 'Требуется авторизация'
+          } else if (error.response.status === 403) {
+            errorMessage = 'Недостаточно прав для удаления товара'
+          }
+        }
+        
         addNotification({
-          message: 'Ошибка при удалении товара: ' + error.message,
+          message: errorMessage,
           type: 'error'
         })
         closeDeleteDialog()
@@ -421,20 +591,28 @@ export default {
       categories,
       loading,
       showCreateModal,
+      showEditModal,
       showBulkModal,
       showDeleteDialog,
       productToDelete,
+      productToEdit,
       selectedCategory,
+      showInactive,
       pagination,
       loadProducts,
       handleCategoryFilter,
+      handleInactiveFilter,
       nextPage,
       previousPage,
       openCreateModal,
       closeCreateModal,
+      openEditModal,
+      closeEditModal,
       openBulkModal,
       closeBulkModal,
       handleCreateProduct,
+      handleUpdateProduct,
+      toggleProductStatus,
       handleBulkCreateProducts,
       confirmDelete,
       closeDeleteDialog,
@@ -478,6 +656,10 @@ export default {
   border-radius: 12px;
   margin-bottom: 24px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .filter-group {
@@ -505,6 +687,22 @@ export default {
 .filter-select:focus {
   outline: none;
   border-color: #3b82f6;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #475569;
+  font-weight: 500;
+}
+
+.filter-checkbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
 }
 
 /* Loading State */
@@ -659,6 +857,9 @@ export default {
 
 .product-actions {
   margin-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 /* Pagination */
@@ -718,6 +919,24 @@ export default {
 
 .btn-danger:hover {
   background: #dc2626;
+}
+
+.btn-warning {
+  background: #f59e0b;
+  color: white;
+}
+
+.btn-warning:hover {
+  background: #d97706;
+}
+
+.btn-success {
+  background: #10b981;
+  color: white;
+}
+
+.btn-success:hover {
+  background: #059669;
 }
 
 .btn-sm {

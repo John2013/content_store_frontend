@@ -42,11 +42,23 @@
             Описание отсутствует
           </p>
           <div class="category-meta">
-            <span class="meta-label">Создано:</span>
-            <span class="meta-value">{{ formatDate(category.created_at) }}</span>
+            <div class="meta-item">
+              <span class="meta-label">Создано:</span>
+              <span class="meta-value">{{ formatDate(category.created_at) }}</span>
+            </div>
+            <div v-if="category.product_count !== undefined" class="meta-item">
+              <span class="meta-label">Товаров:</span>
+              <span class="meta-value">{{ category.product_count }}</span>
+            </div>
           </div>
         </div>
         <div class="category-actions">
+          <button
+            class="btn btn-secondary btn-sm"
+            @click="openEditModal(category)"
+          >
+            Редактировать
+          </button>
           <button
             class="btn btn-danger btn-sm"
             @click="confirmDelete(category)"
@@ -66,6 +78,24 @@
         </div>
         <div class="modal-body">
           <CategoryForm @submit="handleCreateCategory" @cancel="closeCreateModal" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div v-if="showEditModal" class="modal-overlay" @click="closeEditModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h2 class="modal-title">Редактировать категорию</h2>
+          <button class="modal-close" @click="closeEditModal">×</button>
+        </div>
+        <div class="modal-body">
+          <CategoryForm 
+            :initial-data="categoryToEdit"
+            :is-edit="true"
+            @submit="handleUpdateCategory" 
+            @cancel="closeEditModal" 
+          />
         </div>
       </div>
     </div>
@@ -101,17 +131,20 @@ export default {
     const categories = ref([])
     const loading = ref(false)
     const showCreateModal = ref(false)
+    const showEditModal = ref(false)
     const showDeleteDialog = ref(false)
     const categoryToDelete = ref(null)
+    const categoryToEdit = ref(null)
 
     /**
-     * Loads categories from API
+     * Loads categories from API with product counts
      * Requirements 2.1: Load and display all categories
+     * Requirements 9.1: Display product counts
      */
     const loadCategories = async () => {
       loading.value = true
       try {
-        const data = await api.getCategories()
+        const data = await api.getCategoriesWithCounts()
         categories.value = data
       } catch (error) {
         // Requirement 2.4: Display error message on load failure
@@ -134,6 +167,20 @@ export default {
 
     const closeCreateModal = () => {
       showCreateModal.value = false
+    }
+
+    /**
+     * Opens edit category modal
+     * Requirements 2.1: Display form for editing category
+     */
+    const openEditModal = (category) => {
+      categoryToEdit.value = category
+      showEditModal.value = true
+    }
+
+    const closeEditModal = () => {
+      showEditModal.value = false
+      categoryToEdit.value = null
     }
 
     /**
@@ -167,6 +214,53 @@ export default {
     }
 
     /**
+     * Handles category update
+     * Requirements 2.1, 2.2: Call API to update category
+     * Handle both PUT and PATCH operations
+     */
+    const handleUpdateCategory = async (data) => {
+      if (!categoryToEdit.value) return
+
+      try {
+        // Use PATCH for partial updates
+        await api.patchCategory(categoryToEdit.value.id, data)
+        
+        // Reload categories to show the updated one
+        await loadCategories()
+        
+        // Close modal
+        closeEditModal()
+        
+        // Show success notification
+        addNotification({
+          message: 'Категория успешно обновлена',
+          type: 'success'
+        })
+      } catch (error) {
+        // Handle error responses
+        let errorMessage = 'Ошибка при обновлении категории: ' + error.message
+        
+        // Handle specific error codes
+        if (error.response) {
+          if (error.response.status === 404) {
+            errorMessage = 'Категория не найдена'
+          } else if (error.response.status === 422) {
+            errorMessage = 'Неверные данные категории'
+          } else if (error.response.status === 401) {
+            errorMessage = 'Требуется авторизация'
+          } else if (error.response.status === 403) {
+            errorMessage = 'Недостаточно прав для обновления категории'
+          }
+        }
+        
+        addNotification({
+          message: errorMessage,
+          type: 'error'
+        })
+      }
+    }
+
+    /**
      * Opens delete confirmation dialog
      * Requirements 4.1: Display confirmation dialog
      */
@@ -182,6 +276,7 @@ export default {
 
     /**
      * Handles category deletion
+     * Requirements 1.1: Use new path parameter API
      * Requirements 4.2: Call API to delete category
      * Requirements 4.3: Update list and show success notification
      * Requirements 4.4: Handle errors with notifications
@@ -204,9 +299,22 @@ export default {
           type: 'success'
         })
       } catch (error) {
-        // Requirement 4.4: Display error message
+        // Handle error responses
+        let errorMessage = 'Ошибка при удалении категории: ' + error.message
+        
+        // Handle specific error codes
+        if (error.response) {
+          if (error.response.status === 404) {
+            errorMessage = 'Категория не найдена'
+          } else if (error.response.status === 401) {
+            errorMessage = 'Требуется авторизация'
+          } else if (error.response.status === 403) {
+            errorMessage = 'Недостаточно прав для удаления категории'
+          }
+        }
+        
         addNotification({
-          message: 'Ошибка при удалении категории: ' + error.message,
+          message: errorMessage,
           type: 'error'
         })
         closeDeleteDialog()
@@ -237,12 +345,17 @@ export default {
       categories,
       loading,
       showCreateModal,
+      showEditModal,
       showDeleteDialog,
       categoryToDelete,
+      categoryToEdit,
       loadCategories,
       openCreateModal,
       closeCreateModal,
+      openEditModal,
+      closeEditModal,
       handleCreateCategory,
+      handleUpdateCategory,
       confirmDelete,
       closeDeleteDialog,
       handleDeleteCategory,
@@ -370,8 +483,16 @@ export default {
 }
 
 .category-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
   font-size: 13px;
   color: #64748b;
+}
+
+.meta-item {
+  display: flex;
+  gap: 4px;
 }
 
 .meta-label {
@@ -379,11 +500,13 @@ export default {
 }
 
 .meta-value {
-  margin-left: 4px;
+  color: #475569;
 }
 
 .category-actions {
   margin-left: 16px;
+  display: flex;
+  gap: 8px;
 }
 
 /* Buttons */
